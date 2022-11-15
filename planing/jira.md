@@ -140,7 +140,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         if (not query and key; "{panel:bgColor=red}No{panel}"; "")) 
         
      
-        query=       labels is not EMPTY AND labels = incident-teamlead-review
+        query=       labels is not EMPTY AND labels = cs-tl-root-cause-reviewed
         ```
         ```
         Ревью QA-lead
@@ -149,7 +149,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         if (not query and key; "{panel:bgColor=red}No{panel}"; "")) 
         
         
-        query=       labels is not EMPTY AND labels = incident-analyzed
+        query=       labels is not EMPTY AND labels = cs-qa-root-cause-reviewed
         ```
         ```
         isSameVersion
@@ -225,7 +225,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Sort by Team
         Sort by Fix Version/s
         Sort by Priority
-        insert issues: ( filter = "Core Stream - All tasks"  or  issueFunction in linkedIssuesOf("project = SM  and Аллокация in ('SC Core BE (ex SC Core Search, Auth)', 'SC Core FE', 'SC Core Tech Services 1', 'SC Core Tech Services 2 (ex U FT 4)') "))  AND project not in ("Service Management") AND status not in (Cancelled, Open) AND (type in (Incident) or type in (Bug) and  "Этап обнаружения" = ИФТ )  AND NOT (labels is not EMPTY AND labels = Автотесты) AND (  NOT (issue in hasTestCoverage() OR issue in impactsTestResult()  or  NOT "Тест-Кейс не требуется!" is EMPTY ) OR NOT ("Предпринятые меры по недопущению возникновения подобных инцидентов" is not EMPTY AND "Корневые причины возникновения проблемы" is not EMPTY)  or  NOT issueFunction in linkedIssuesOf("issueFunction in linkedIssuesOf ('key = EDU-44188', 'consist of ')")    or not ( labels is not EMPTY AND labels = incident-analyzed)) AND created >= 2021-10-01 AND created < -2d  ORDER BY cf[10201] ASC, cf[11402] ASC
+        insert issues: ( filter = "Core Stream - All tasks"  or  issueFunction in linkedIssuesOf("project = SM  and Аллокация in ('SC Core BE (ex SC Core Search, Auth)', 'SC Core FE', 'SC Core Tech Services 1', 'SC Core Tech Services 2 (ex U FT 4)') "))  AND project not in ("Service Management") AND status not in (Cancelled, Open) AND (type in (Incident) or type in (Bug) and  "Этап обнаружения" = ИФТ )  AND NOT (labels is not EMPTY AND labels = Автотесты) AND (  NOT (issue in hasTestCoverage() OR issue in impactsTestResult()  or  NOT "Тест-Кейс не требуется!" is EMPTY ) OR NOT ("Предпринятые меры по недопущению возникновения подобных инцидентов" is not EMPTY AND "Корневые причины возникновения проблемы" is not EMPTY)  or  NOT issueFunction in linkedIssuesOf("issueFunction in linkedIssuesOf ('key = EDU-44188', 'consist of ')")    or not ( labels is not EMPTY AND labels = cs-qa-root-cause-reviewed)) AND created >= 2021-10-01 AND created < -2d  ORDER BY cf[10201] ASC, cf[11402] ASC
         ```
     - Дополнительно 
 
