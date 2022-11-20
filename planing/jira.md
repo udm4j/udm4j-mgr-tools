@@ -232,6 +232,23 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
 
 Проблемы ведения джиры
 -----------
+* Поля 
+    - Снижение приоритета 
+    
+        ```
+        if (JQL {priority changed};
+            WITH MaxPriority = If(type != undefined and JQL{priority was Blocker};"Blocker";
+                                    type != undefined and JQL{priority was Critical};"Critical";
+                                    type != undefined and JQL{priority was High};"High";
+                                    type != undefined and JQL{priority was Medium};"Medium";
+                                    type != undefined and JQL{priority was Low};"Low"
+                                ) :
+            if (MaxPriority != Priority;
+                CONCAT(MaxPriority," ","⇢"," ",priority)
+            )
+        )
+
+        ```
 
 * Легенда 
     - Легенда: флаги — для тимлидов, блокнот - для Ульянова 
@@ -239,7 +256,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
 
 (далее - критичные нарушения)
 
-* Нарушения производственного процесса
+1. Нарушения производственного процесса
     - Запрос 
     
         ```
@@ -251,7 +268,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: status != cancelled and (resolved >= -30d OR statusCategory != Done ) and filter = "X-Производственные метрики-X"     
         ```
       
-* Задачи без привязки к SCP
+2. Задачи без привязки к SCP
 
     - Запрос 
     
@@ -260,7 +277,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND type in ("Change Request", Task, Epic, Story) AND (resolved >= '2022-07-01' OR statusCategory != Done) and fixVersion in versionMatchRegex("r/.*") AND status not in (Cancelled) AND project not in (SCP) AND NOT ( issueFunction in linkedIssuesOfAllRecursive("project = SCP and issuetype = Epic", "consist of ") or issueFunction in linkedIssuesOfAllRecursive("project = SCP and issuetype = Epic", "is Epic of") or type in (Epic) and "Тип Epic" = "Run / Operations / Группировка задач" or issueFunction in linkedIssuesOf("project not in (SCP) and issuetype = Epic and 'Тип Epic' = 'Run / Operations / Группировка задач' and not issueFunction in linkedIssuesOf('project in (SCP) and type in (Epic)', 'consist of ') ", "consist of ") or issueFunction in linkedIssuesOf("project not in (SCP) and issuetype = Epic and 'Тип Epic' = 'Run / Operations / Группировка задач' and not issueFunction in linkedIssuesOf('project in (SCP) and type in (Epic)', 'consist of ') ", "is Epic of") or IssueFunction in linkedIssuesOf("project not in (SCP) and issuetype = Epic AND issueFunction in linkedIssuesOfAllRecursive('project = SCP and issuetype = Epic', 'consist of ')", "is Epic of") )
         ```
       
-* Задачи закрытые в будущем
+3. Задачи закрытые в будущем
 
     - Запрос
 
@@ -270,7 +287,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory = Done and (fixVersion in releaseDate("after 31d") )
         ```   
 
-* Out of date
+4. Out of date
 
     - Запрос
 
@@ -279,7 +296,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - out-of-date issues"
         ```   
 
-* Задачи, которые зависли
+5. Задачи, которые зависли
     
     - Запрос
 
@@ -292,7 +309,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
     - Дополнительно 
         * Должно быть так. Но так фильтр очень сильно тормозит и ломает структуру, поэтому сделал чуть попроще НидТест=1, ИнКуА=3, НидМерж=1, МержБранч=1, ИФТ=0, НидИнфо=1, ИнРевью=1, РеОпен+Хай/Крит/Блокер=1
 
-* (драфт) Out of date v2
+6. (драфт) Out of date v2
 
     - Запрос
 
@@ -301,7 +318,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - out-of-date issues v2"
         ```   
 
-* (драфт) Открытые SubTasks при закрытом родителе
+7. (драфт) Открытые SubTasks при закрытом родителе
 
     - Запрос
 
@@ -310,9 +327,37 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type in (subTaskIssueTypes(), Sub-task) and issueFunction in subtasksOf("statusCategory=Done")
         ```   
       
+8. Дефекты без обоснования просрочки SLA
+
+    - Запрос
+    
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND created > 2022-09-25 AND issueFunction in linkedIssuesOf("project = SM and slaFunction = isBreached()", " -> Причина в") and not (labels is not EMPTY  and labels in (cs-itl-sla-reviewed))
+        ```
+    
+9. Дефекты без обоснования понижения приоритета 
+
+    - Запрос 
+        
+        ```
+        Filter: "Снижение приоритета" is not EMPTY
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND type in (Bug, Incident) AND fixVersion not in (releasedVersions()) AND priority changed and not (labels is not EMPTY and labels in (cs-itl-priority-change-reviewed))
+        ```
+
+10. Дефекты с некорректным приоритетом
+    
+    - Запрос 
+    
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks"  and type in (Bug, Incident) and "Основание допуска открытого дефекта на ПРОД" is not EMPTY  and fixVersion in (unreleasedVersions()) and priority not in (Low, Lowest) and status not in  (Cancelled, IFT, "Merge Branch", Resolved) and project not in (CORE)
+        ```
+      
 (далее - некритичные нарушения)
 
-* Задачи неправильного типа
+1. Задачи неправильного типа
 
     - Запрос
 
@@ -320,19 +365,9 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Group by Team
         Group by Issue Type
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done and not (project in (EDU, FRS, BTC) and type in ("Change Request", Epic, Story, Bug, Incident) or project in (KEY) and type in ("Change Request", Epic, Story, Bug, Incident, Task) or project in ( CORE) and type in ("Change Request", Epic, Story, Task, Bug, Incident) or project in (SM) and type in (Риск, "Release 2.0") or project in (SCP) and type in (Epic) or issueFunction in subtasksOf("issuetype IN (Story, Task)"))
-        ```   
-
-* Задачи неправильного типа
-
-    - Запрос
-
         ```
-        Group by Team
-        Group by Issue Type
-        Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done and not (project in (EDU, FRS, BTC) and type in ("Change Request", Epic, Story, Bug, Incident) or project in (KEY) and type in ("Change Request", Epic, Story, Bug, Incident, Task) or project in ( CORE) and type in ("Change Request", Epic, Story, Task, Bug, Incident) or project in (SM) and type in (Риск, "Release 2.0") or project in (SCP) and type in (Epic) or issueFunction in subtasksOf("issuetype IN (Story, Task)"))
-        ```   
 
-* (драфт) Задачи с неправильными связями к/из SCP
+2. (драфт) Задачи с неправильными связями к/из SCP
 
     - Запрос
 
@@ -340,7 +375,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" and ((project = CORE and type in (Epic) and summary ~ 'ДОД' and not issueFunction in linkedIssuesOf("project=SCP and statusCategory != Done", "consist of ")) or (project =SCP and issueFunction in linkedIssuesOf("not (project =CORE and type in (Epic) and summary ~ 'ДОД')", "is part of") and statusCategory != Done))
         ```   
 
-* Задачи без версии
+3. Задачи без версии
 
     - Запрос
 
@@ -349,7 +384,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type not in (Bug, Incident, Риск, Epic, Story, "Change Request", "Release 2.0") and not (not fixVersion is EMPTY and (fixVersion in versionMatchRegex("r/.*|#20.*")))
         ```   
 
-* Задачи без исполнителя
+4. Задачи без исполнителя
 
     - Запрос
 
@@ -359,7 +394,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type not in (Bug, Incident, Epic, Story) and assignee is EMPTY
         ```   
 
-* Задачи закрытые в неправильной версии
+5. Задачи закрытые в неправильной версии
 
     - Запрос
 
@@ -369,7 +404,17 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory = Done and type not in (ЗНО, Риск) and project not in (SCP) AND not ( not fixVersion is EMPTY and (fixVersion in (archivedVersions(), releasedVersions(), earliestUnreleasedVersionByReleaseDate(EDU), earliestUnreleasedVersionByReleaseDate(KEY), earliestUnreleasedVersionByReleaseDate(CORE)) or fixVersion in versionMatch("r/.*") or fixVersion in versionMatch("#202.-.*") ))
         ```   
 
-* Задачи с неправомерным флагом "Без изменения исходного кода"
+6. (драфт) Задачи без тестирования 
+
+    - Запрос 
+    
+        ```
+        Group by Fix Version/s
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND created > 2022-07-01 AND status was in ('in QA')AND status not in (Cancelled) AND (type not in (subTaskIssueTypes()) AND assignee was not in team('SC Core QA') OR type  in (subTaskIssueTypes()) and issueFunction in parentsOf(" status was in ('in QA') AND status not in (Cancelled) AND assignee not in team('SC Core QA')")) ORDER BY issuetype DESC
+        ```
+
+7. Задачи с неправомерным флагом "Без изменения исходного кода"
 
     - Запрос
 
@@ -380,7 +425,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
 
 (далее - проблемы планирования)
 
-* Задачи с некорректными формулировками https://confluence.pcbltools.ru/confluence/pages/viewpage.action?pageId=76683568
+1. Задачи с некорректными формулировками https://confluence.pcbltools.ru/confluence/pages/viewpage.action?pageId=76683568
 
     - Запрос
 
@@ -389,7 +434,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND type in (Epic) and project in (CORE) and summary ~ 'ДОД' AND (NOT (summary ~ 'Реализован*' OR summary ~ 'Проработан*' OR summary ~ 'внедрен*' OR summary ~ 'удален*' OR summary ~ 'настроен*' OR summary ~ "\\[RoadMap\\]" OR summary ~ "\\[Backlog\\]") OR summary ~ Поддержка OR summary ~ Стабилизация OR summary ~ Развитие OR summary ~ Исправление OR summary ~ Исправление OR summary ~ Актуализация OR summary ~ Техдолг OR summary ~ Оптимизация OR summary ~ Повышение) ORDER BY fixVersion ASC
         ```   
 
-* (драфт) Ошибки планирования
+2. (драфт) Ошибки планирования
 
     - Запрос
 
@@ -398,7 +443,15 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND type in ("Change Proposal", "Change Request", Epic, Story, Task) and (fixVersion in ("#2023q1", "#2023q2", "#2023q3", "#2023q4") and (priority not in (Lowest) or status not in (open) or issueFunction in linkedIssuesOfRemote("query", "pageId=76679613") ) or ( fixVersion in ( "#2022q4", "r/2022-10", "r/56.0.0-rc1", "r/57.0.0-rc1", "r/58.0.0-rc1", "r/59.0.0-rc1", "r/60.0.0-rc1", "r/48.0.0-rc1", "r/48.1.0-rc1" ) and not issueFunction in linkedIssuesOfRemote("query", "pageId=76679613") ) ) and not (fixVersion in ("r/48.0.0-rc1", "r/48.1.0-rc1") and project in ( EDU, SM)) and assignee not in (MVMilkov)
         ```   
 
+3. Несогласованные цели
 
+    - Запрос 
+    
+        ```
+        Group by Fix Version/s    
+        Insert issues: filter = "Core Stream - All goals and DoDs" and (Verified is EMPTY )
+        ```
+    
 Метрики
 -----------
 

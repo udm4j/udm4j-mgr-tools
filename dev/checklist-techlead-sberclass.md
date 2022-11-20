@@ -47,12 +47,19 @@
     * Особенности: 
         - Внести исправления в настройки всех сред (дев, стейдж, прод)
         - Завести SM для изменения конфигурации на стейдж и прод
-3. TBD
+99. TBD
 
 <a name="frontend">Фронт</a>
 -----------
 1. Строго обратносовместимые изменения
-2. TBD
+2. Верстка 
+   * Предусмотри автозаполнение полей. Подробнее [тут](https://habr.com/ru/company/yandex/blog/686668/)
+      - Добавь для поля соответствующие значения в атрибутах autocomplete, name, placeholder, id и label
+         * Возможные типы данных в полях Chromium: UNKNOWN_TYPE, USERNAME, NAME_FIRST, NAME_MIDDLE, NAME_LAST, NAME_FULL, EMAIL_ADDRESS, ADDRESS_HOME_LINE1, ADDRESS_HOME_CITY, ADDRESS_HOME_STATE, ADDRESS_HOME_ZIP, ADDRESS_HOME_COUNTRY, CREDIT_CARD_NAME_FULL, CREDIT_CARD_NUMBER, CREDIT_CARD_VERIFICATION_CODE
+      - ```autocomplete=“off”``` выключает только исторические подсказки
+      - Обработай ошибки (например, когда телефон запомнен как "8...", а поле предусматривает хардкод "+7..." - разные форматы заполненного и отображаемого значения)
+3. Работа приложения в оффлайне
+99. TBD
 
 <a name="backend">Бек</a>
 -----------
