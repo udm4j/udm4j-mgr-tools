@@ -186,12 +186,66 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
                 )
             )
         )
-      
         ```
+        ```
+        Снижение приоритета
+      
+        if (JQL {priority changed};
+            WITH MaxPriority = If(type != undefined and JQL{priority was Blocker};"Blocker";
+                                    type != undefined and JQL{priority was Critical};"Critical";
+                                    type != undefined and JQL{priority was High};"High";
+                                    type != undefined and JQL{priority was Medium};"Medium";
+                                    type != undefined and JQL{priority was Low};"Low"
+                                ) :
+            if (MaxPriority != Priority;
+                CONCAT(MaxPriority," ","⇢"," ",priority)
+            )
+        )
+        ```      
+    
     - Дополнительно 
         * Отображаемые поля: key, Priority, Summary, Count, Status, Assignee, AffectedVersion, DueDate(custom),Контроль срок,Срок SLA/RCA (custom),Есть ТК(custom), Меры (custom), Linked to Epic(custom),Ревью тимлида(custom),Ревью QA(custom), isSameVersion
     
-* Открытые дефекты 
+* Дефекты без импакт анализа 
+
+    - Запрос 
+        Только переданные в тестирование, исправление которых не в rc1, так как rc1 это исправление в фича-ветке - не интересно
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" and project not in (SM) and type in (Bug, Incident) and status not in (Cancelled) and status was in ("in QA")  and Impact-анализ is EMPTY and fixVersion in (unreleasedVersions())  and not fixVersion  in versionMatch("r/.*rc1")
+        ```
+
+* Дефекты без обоснования просрочки SLA
+
+    - Запрос
+
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND created > 2022-09-25 AND issueFunction in linkedIssuesOf("project = SM and slaFunction = isBreached()", " -> Причина в") and not (labels is not EMPTY  and labels in (cs-itl-sla-reviewed)) and status not in (Cancelled)
+        ```
+
+* Дефекты без обоснования понижения приоритета
+
+    - Запрос
+
+        ```
+        Filter: "Снижение приоритета" is not EMPTY
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND type in (Bug, Incident) AND fixVersion not in (releasedVersions()) AND priority changed and not (labels is not EMPTY and labels in (cs-itl-priority-change-reviewed)) and status not in (Cancelled)
+        ```
+
+* Дефекты с некорректным приоритетом
+
+    - Запрос
+
+        ```
+        Filter: isSameVersion is equal to 'not same'
+        Group by Fix Version/s
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks"  and type in (Bug, Incident) and "Основание допуска открытого дефекта на ПРОД" is not EMPTY  and fixVersion in (unreleasedVersions()) and priority not in (Low, Lowest) and status not in  (Cancelled, IFT, "Merge Branch", Resolved) and project not in (CORE)
+        ```
+    
+* Дефекты открытые
 
     - Запрос 
     
@@ -228,27 +282,18 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         insert issues: ( filter = "Core Stream - All tasks"  or  issueFunction in linkedIssuesOf("project = SM  and Аллокация in ('SC Core BE (ex SC Core Search, Auth)', 'SC Core FE', 'SC Core Tech Services 1', 'SC Core Tech Services 2 (ex U FT 4)') "))  AND project not in ("Service Management") AND status not in (Cancelled, Open) AND (type in (Incident) or type in (Bug) and  "Этап обнаружения" = ИФТ )  AND NOT (labels is not EMPTY AND labels = Автотесты) AND (  NOT (issue in hasTestCoverage() OR issue in impactsTestResult()  or  NOT "Тест-Кейс не требуется!" is EMPTY ) OR NOT ("Предпринятые меры по недопущению возникновения подобных инцидентов" is not EMPTY AND "Корневые причины возникновения проблемы" is not EMPTY)  or  NOT issueFunction in linkedIssuesOf("issueFunction in linkedIssuesOf ('key = EDU-44188', 'consist of ')")    or not ( labels is not EMPTY AND labels = cs-qa-root-cause-reviewed)) AND created >= 2021-10-01 AND created < -2d  ORDER BY cf[10201] ASC, cf[11402] ASC
         ```
     - Дополнительно 
+    
+* Дефекты без ревью ITL 
+
+    - Запрос 
+    
+        ```
+        Insert issues: filter = "Core Stream - All tasks" AND project not in ("Service Management") AND (type in (Incident) OR type in (Bug) AND "Этап обнаружения" = ИФТ) AND labels not in (cs-itl-root-cause-reviewed, Автотесты) AND labels = cs-qa-root-cause-reviewed AND created >= 2022-07-01 ORDER BY created ASC
+        ```
 
 
 Проблемы ведения джиры
 -----------
-* Поля 
-    - Снижение приоритета 
-    
-        ```
-        if (JQL {priority changed};
-            WITH MaxPriority = If(type != undefined and JQL{priority was Blocker};"Blocker";
-                                    type != undefined and JQL{priority was Critical};"Critical";
-                                    type != undefined and JQL{priority was High};"High";
-                                    type != undefined and JQL{priority was Medium};"Medium";
-                                    type != undefined and JQL{priority was Low};"Low"
-                                ) :
-            if (MaxPriority != Priority;
-                CONCAT(MaxPriority," ","⇢"," ",priority)
-            )
-        )
-
-        ```
 
 * Легенда 
     - Легенда: флаги — для тимлидов, блокнот - для Ульянова 
@@ -327,33 +372,6 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type in (subTaskIssueTypes(), Sub-task) and issueFunction in subtasksOf("statusCategory=Done")
         ```   
       
-8. Дефекты без обоснования просрочки SLA
-
-    - Запрос
-    
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - All tasks" AND created > 2022-09-25 AND issueFunction in linkedIssuesOf("project = SM and slaFunction = isBreached()", " -> Причина в") and not (labels is not EMPTY  and labels in (cs-itl-sla-reviewed))
-        ```
-    
-9. Дефекты без обоснования понижения приоритета 
-
-    - Запрос 
-        
-        ```
-        Filter: "Снижение приоритета" is not EMPTY
-        Group by Team
-        Insert issues: filter = "Core Stream - All tasks" AND type in (Bug, Incident) AND fixVersion not in (releasedVersions()) AND priority changed and not (labels is not EMPTY and labels in (cs-itl-priority-change-reviewed))
-        ```
-
-10. Дефекты с некорректным приоритетом
-    
-    - Запрос 
-    
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - All tasks"  and type in (Bug, Incident) and "Основание допуска открытого дефекта на ПРОД" is not EMPTY  and fixVersion in (unreleasedVersions()) and priority not in (Low, Lowest) and status not in  (Cancelled, IFT, "Merge Branch", Resolved) and project not in (CORE)
-        ```
       
 (далее - некритичные нарушения)
 
