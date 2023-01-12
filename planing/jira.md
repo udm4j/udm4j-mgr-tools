@@ -7,22 +7,126 @@
 
 ```
 Core Stream - All goals and DoDs
-(project = SCP AND type = Epic AND Collaboration in (DMUlyanov.SBT) OR project = CORE AND type = Epic AND summary ~ ДОД) AND statusCategory != Done
+(project = SCP AND type = Epic AND (Collaboration in (DMUlyanov.SBT) OR assignee in (DMUlyanov.SBT)) OR project = CORE AND type = Epic AND summary ~ ДОД) AND statusCategory != Done ORDER BY assignee ASC
 
 Core Stream - All tasks
 (assignee in team("SC Core FE") OR Team = "SC Core FE" OR assignee in team("SC Core BE (ex SC Core Search, Auth)") OR Team in ("SC Core BE (ex SC Core Search, Auth)") OR Team in ("SC Core Tech Services 1") OR assignee in team("SC Core Tech Services 1") OR Team in ("SC Core Tech Services 2 (ex U FT 4)") OR assignee in team("SC Core Tech Services 2 (ex U FT 4)") OR Team in ("SC Новая архитектура")) AND issuetype not in (RCA) AND project not in (MET, MAN-Management, "Projects Portfolio", "Training Space")
 
 Core Stream - out-of-date issues v2
-filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (Bug, Incident, "Release 2.0") AND status not in (IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) AND (fixVersion in releaseDate("before 2d") OR "Фича-фриз план" < 2d) OR type not in (Bug, Incident, "Release 2.0") AND status not in (NeedTest, "in QA", IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) AND (fixVersion in releaseDate("before 5d") OR "Фича-фриз план" < 5d) OR type in (Bug, Incident) AND status not in (IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) AND "Установка план" < 2d OR type in (Bug, Incident) AND status not in (NeedTest, "in QA", IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) AND "Установка план" < 5d)
+filter = "Core Stream - All tasks" AND statusCategory != Done AND (
+	type not in (Bug, Incident, "Release 2.0") 
+	AND status not in (IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) 
+	AND (fixVersion in releaseDate("before 2d") OR "Фича-фриз план" < 2d) 
+	OR 
+	type not in (Bug, Incident, "Release 2.0") 
+	AND status not in (NeedTest, "in QA", IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) 
+	AND (fixVersion in releaseDate("before 5d") OR "Фича-фриз план" < 5d) 
+	OR 
+	type in (Bug, Incident) 
+	AND status not in (IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) 
+	AND "Установка план" < 2d 
+	OR 
+	type in (Bug, Incident) 
+	AND status not in (NeedTest, "in QA", IFT, "Ready for Release", "Merge Branch", "Deployed to prod", Released) 
+	AND "Установка план" < 5d
+	OR 
+	dueDate < now()
+)
+
+Specs count 
+with november = if (JQL {issueFunction in linkedIssuesOfRemote(query, "pageId=81927684")}; 1; 0):
+with december = if (JQL {issueFunction in linkedIssuesOfRemote(query, "pageId=81938937")}; 1; 0):
+with january  = if (JQL {issueFunction in linkedIssuesOfRemote(query, "pageId=87266437")}; 1; 0):
+  
+if (key;november + december + january)
+
+
 ```
 
+
 2. Структуры и фильтры
+
+* Цели без комментария 
+    - Запрос 
+    
+        ```
+        Count Leaves
+      
+        Last Comment Date 
+        
+        FORMAT_DATETIME(comments
+        .UMAX_BY($.created)
+        .map($.created + 1000*60*60*24*5), 'yyyy-MM-dd')
+      
+        
+        isCommentNotActual 
+      
+        if (key;comments
+        .UMAX_BY($.created)
+        .map($.created + 1000*60*60*24*5) < now())
+      
+      
+        Filter items where attribute 'isCommentNotActual' is equal to 1
+        Group by Fix Version/s
+        Sort by Summary
+        Insert issues: filter = "Core Stream - All goals and DoDs" and project = SCP and status in (Open)
+        ```
+    
+* Спека. Задачи вне спецификации
+    - Запрос
+
+        ```
+        Filter items where attribute 'Specs count' is equal to 0
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" and type in (Story, Epic, Task) and ( status changed to (IFT, Resolved, "Business Review") after '2022-12-01' ) and (labels is EMPTY or labels not in ( 'cs-itl-out-of-spec'))
+        ```
+
+* Спека. Задачи в спецификации с некорректными формулировками https://confluence.pcbltools.ru/confluence/pages/viewpage.action?pageId=76683568
+    - Запрос 
+    
+        ```
+        Filter items where attribute 'Specs count' greater than 0
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks"   AND NOT (summary ~ 'Реализован*' OR summary ~ 'Проработан*'  OR summary ~ 'внедрен*' OR summary ~ 'удален*'  OR summary ~ 'настроен*'  OR summary ~ "\\[RoadMap\\]" OR summary ~ "\\[Backlog\\]" OR summary ~ 'Поддержка' OR summary ~ 'Стабилизация' OR summary ~ 'Развитие' OR summary ~ 'Исправление' OR summary ~ 'Актуализация' OR summary ~ 'Техдолг' OR summary ~ 'Оптимизация' OR summary ~ 'Повышение' OR summary ~ 'Разработка' OR summary ~ 'Доработка')  ORDER BY fixVersion ASC
+        ```
+
+* Спека. Задачи в нескольких спецификациях 
+    - Запрос 
+    
+        ```
+        Filter items where attribute 'Specs count' greater than 1
+        Group by Team
+        Insert issues: filter = "Core Stream - tasks in spec"
+        ```
+
+* Спека. Лишние задачи в спецификации
+    - Запрос 
+        "Правильный" запрос тормозит, поэтому пришлось добавить несколько более явных правил, но это снижает точность. 
+      
+        ```
+        Filter items where attribute Formula greater than 0
+        Group by Team
+        Insert issues: ( labels in (cs-itl-out-of-spec) or filter = "Core Stream - All tasks" and (type not in (Epic, Story, Task) or status was not in (IFT, "Business Review", Resolved, Cancelled)) or not filter = "Core Stream - All tasks" and resolved > 2022-12-01 ) and  (labels is EMPTY or  labels not in (cs-itl-force-to-spec))
+        ```
+      
+* Задачи, запланированные слишком далеко
+    - Запрос
+        
+        ``` 
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND project not in ("Epic Roadmap", Метрики) AND type not in (Epic) AND statusCategory != Done AND (fixVersion in releaseDate("after 100d")) ORDER BY fixVersion ASC
+        ```
+
 * Core Stream: Goals and DoDs
     - Запрос
       
         ```
+        Add issues linked by PartOF: parent consist of children
+        Add sub-tasks
+        Add issues belonging to epics
         Links: Add issues linked by PartOF: parent consist of children
         Links: Add sub-tasks
+        Filter issues: filter = "Core Stream - All tasks"
         Remove Inserter/Extender Duplicates
         group by: fixVersion
         sort by: summary
@@ -321,88 +425,34 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Group by Team
         Insert issues: filter = "Core Stream - All tasks" AND type in ("Change Request", Task, Epic, Story) AND (resolved >= '2022-07-01' OR statusCategory != Done) and fixVersion in versionMatchRegex("r/.*") AND status not in (Cancelled) AND project not in (SCP) AND NOT ( issueFunction in linkedIssuesOfAllRecursive("project = SCP and issuetype = Epic", "consist of ") or issueFunction in linkedIssuesOfAllRecursive("project = SCP and issuetype = Epic", "is Epic of") or type in (Epic) and "Тип Epic" = "Run / Operations / Группировка задач" or issueFunction in linkedIssuesOf("project not in (SCP) and issuetype = Epic and 'Тип Epic' = 'Run / Operations / Группировка задач' and not issueFunction in linkedIssuesOf('project in (SCP) and type in (Epic)', 'consist of ') ", "consist of ") or issueFunction in linkedIssuesOf("project not in (SCP) and issuetype = Epic and 'Тип Epic' = 'Run / Operations / Группировка задач' and not issueFunction in linkedIssuesOf('project in (SCP) and type in (Epic)', 'consist of ') ", "is Epic of") or IssueFunction in linkedIssuesOf("project not in (SCP) and issuetype = Epic AND issueFunction in linkedIssuesOfAllRecursive('project = SCP and issuetype = Epic', 'consist of ')", "is Epic of") )
         ```
-      
-3. Задачи закрытые в будущем
+
+3. (драфт) Задачи с неправильными связями к/из SCP
+
+    - Запрос
+
+        ```
+        Insert issues:   filter = "Core Stream - All tasks" and ((project = CORE and type in (Epic, "Change Request")  and summary ~ 'ДОД' and not  issueFunction in linkedIssuesOf("project=SCP and statusCategory != Done", "consist of ")) or (project =SCP and  issueFunction in linkedIssuesOf("not (project =CORE and type in (Epic, 'Change Request') and summary ~ 'ДОД' or project in (MANM))", "is part of") and statusCategory != Done))
+        ```   
+
+4. Задачи с неправомерным флагом "Без изменения исходного кода"
 
     - Запрос
 
         ```
         Group by Team
-        Group by Fix Version/s
-        Insert issues: filter = "Core Stream - All tasks" AND statusCategory = Done and (fixVersion in releaseDate("after 31d") )
+        Insert issues: filter = "Core Stream - All tasks" and type in (Story) and "Без изменения исходного кода" in (Да) and created > 2022-08-01
         ```   
 
-4. Out of date
-
-    - Запрос
-
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - out-of-date issues"
-        ```   
-
-5. Задачи, которые зависли
-    
-    - Запрос
-
-        ```
-        Group by Team
-        Group by Status
-        Insert issues: filter = "Core Stream - All tasks" and type in (Bug, Incident) and project not in ("Service Management") and (status in (NeedTest, "Need Merge", "Merge Branch", "Need Info", Reopened, "in QA") and "Time in Status" in realTime(">", 24h)) and fixVersion in versionMatch("r/*") and not (issueFunction in linkedIssuesOf('statusCategory != Done', 'blocks'))
-        ```   
-      
-    - Дополнительно 
-        * Должно быть так. Но так фильтр очень сильно тормозит и ломает структуру, поэтому сделал чуть попроще НидТест=1, ИнКуА=3, НидМерж=1, МержБранч=1, ИФТ=0, НидИнфо=1, ИнРевью=1, РеОпен+Хай/Крит/Блокер=1
-
-6. (драфт) Out of date v2
-
-    - Запрос
-
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - out-of-date issues v2"
-        ```   
-
-7. (драфт) Открытые SubTasks при закрытом родителе
+5. Открытые SubTasks при закрытом родителе
 
     - Запрос
 
         ```
         Group by Team
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type in (subTaskIssueTypes(), Sub-task) and issueFunction in subtasksOf("statusCategory=Done")
-        ```   
-      
-      
-(далее - некритичные нарушения)
-
-1. Задачи неправильного типа
-
-    - Запрос
-
-        ```
-        Group by Team
-        Group by Issue Type
-        Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done and not (project in (EDU, FRS, BTC) and type in ("Change Request", Epic, Story, Bug, Incident) or project in (KEY) and type in ("Change Request", Epic, Story, Bug, Incident, Task) or project in ( CORE) and type in ("Change Request", Epic, Story, Task, Bug, Incident) or project in (SM) and type in (Риск, "Release 2.0") or project in (SCP) and type in (Epic) or issueFunction in subtasksOf("issuetype IN (Story, Task)"))
         ```
 
-2. (драфт) Задачи с неправильными связями к/из SCP
-
-    - Запрос
-
-        ```
-        Insert issues: filter = "Core Stream - All tasks" and ((project = CORE and type in (Epic) and summary ~ 'ДОД' and not issueFunction in linkedIssuesOf("project=SCP and statusCategory != Done", "consist of ")) or (project =SCP and issueFunction in linkedIssuesOf("not (project =CORE and type in (Epic) and summary ~ 'ДОД')", "is part of") and statusCategory != Done))
-        ```   
-
-3. Задачи без версии
-
-    - Запрос
-
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type not in (Bug, Incident, Риск, Epic, Story, "Change Request", "Release 2.0") and not (not fixVersion is EMPTY and (fixVersion in versionMatchRegex("r/.*|#20.*")))
-        ```   
-
-4. Задачи без исполнителя
+6. Задачи без исполнителя
 
     - Запрос
 
@@ -412,47 +462,124 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type not in (Bug, Incident, Epic, Story) and assignee is EMPTY
         ```   
 
-5. Задачи закрытые в неправильной версии
+7. Задачи закрытые в неправильной версии
 
     - Запрос
 
         ```
         Group by Team
         Group by Fix Version/s
-        Insert issues: filter = "Core Stream - All tasks" AND statusCategory = Done and type not in (ЗНО, Риск) and project not in (SCP) AND not ( not fixVersion is EMPTY and (fixVersion in (archivedVersions(), releasedVersions(), earliestUnreleasedVersionByReleaseDate(EDU), earliestUnreleasedVersionByReleaseDate(KEY), earliestUnreleasedVersionByReleaseDate(CORE)) or fixVersion in versionMatch("r/.*") or fixVersion in versionMatch("#202.-.*") ))
+        Insert issues: filter = "Core Stream - All tasks" 
+                        AND statusCategory = Done
+                        and project not in (SCP, SM)
+                        AND (
+                            fixVersion is EMPTY
+                            or fixVersion not in versionMatch("r/.*")
+                        )
+        ```   
+    
+8. Задачи закрытые в будущем
+
+    - Запрос
+
+        ```
+        Group by Team
+        Group by Fix Version/s
+        Insert issues: filter = "Core Stream - All tasks" AND statusCategory = Done and (fixVersion in releaseDate("after 31d") )
+        ```
+9. Задачи без версии
+
+    - Запрос
+
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done AND type not in (Bug, Incident, Риск, Epic, Story, "Change Request", "Release 2.0", ЗНО, DevOps) and not (not fixVersion is EMPTY and (fixVersion in versionMatchRegex("r/.*|#20.*")))
         ```   
 
-6. (драфт) Задачи без тестирования 
+10. Инциденты, у которых релиз позже контрольного срока
+
+    - Запрос
+
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - All tasks"  and issueFunction in linkedIssuesOf("project=SM and type=Incident and statusCategory!=Done "," -> Причина в") and issueFunction in dateCompare("", "Контрольный срок < Установка план")
+        ```   
+
+
+
+(далее - некритичные нарушения)
+
+1. Out of date
+
+    - Запрос
+
+        ```
+        Group by Team
+        Insert issues: filter = "Core Stream - out-of-date issues v2"
+        ``` 
+
+2. Задачи, которые зависли
+
+    - Запрос
+
+        ```
+        Group by Team
+        Group by Status
+        Insert issues: filter = "Core Stream - All tasks" and type in (Bug, Incident) and project not in ("Service Management") and (status in (NeedTest, "Need Merge", "Merge Branch", "Need Info", Reopened, "in QA") and "Time in Status" in realTime(">", 24h)) and fixVersion in versionMatch("r/*") and not (issueFunction in linkedIssuesOf('statusCategory != Done', 'blocks'))
+        ```   
+
+    - Дополнительно
+        * Должно быть так. Но так фильтр очень сильно тормозит и ломает структуру, поэтому сделал чуть попроще НидТест=1, ИнКуА=3, НидМерж=1, МержБранч=1, ИФТ=0, НидИнфо=1, ИнРевью=1, РеОпен+Хай/Крит/Блокер=1
+
+    
+3. Задачи неправильного типа
+
+    - Запрос
+
+        ```
+        Group by Team
+        Group by Issue Type
+        Insert issues: filter = "Core Stream - All tasks" AND statusCategory != Done and not (project in (EDU, FRS, BTC) and type in ("Change Request", Epic, Story, Bug, Incident) or project in (KEY) and type in ("Change Request", Epic, Story, Bug, Incident, Task) or project in ( CORE) and type in ("Change Request", Epic, Story, Task, Bug, Incident) or project in (SM) and type in (Риск, "Release 2.0", Incident, DevOps, ЗНО) or project in (SCP) and type in (Epic) or issueFunction in subtasksOf("issuetype IN (Story, Task)"))
+        ```
+
+4. (драфт) Задачи без тестирования 
 
     - Запрос 
     
         ```
         Group by Fix Version/s
         Group by Team
-        Insert issues: filter = "Core Stream - All tasks" AND created > 2022-07-01 AND status was in ('in QA')AND status not in (Cancelled) AND (type not in (subTaskIssueTypes()) AND assignee was not in team('SC Core QA') OR type  in (subTaskIssueTypes()) and issueFunction in parentsOf(" status was in ('in QA') AND status not in (Cancelled) AND assignee not in team('SC Core QA')")) ORDER BY issuetype DESC
+        Insert issues: filter = "Core Stream - All tasks" 
+                        AND created > 2022-10-01
+                        AND status was in ('in QA')
+                        AND status not in (Cancelled)
+                        and (labels is EMPTY or labels not in (cs-qa-no-need-test))
+                        AND (
+                            type in (Story) and (assignee was not in team('SC Core QA') 
+                                                    and issueFunction not in parentsOf("
+                                                        type in (subTaskIssueTypes()) and status was in ('IN PROGRESS') AND status not in (Cancelled) AND assignee in team('SC Core QA') and (summary ~ 'СТ' or summary ~ 'СТ + ИФТ')
+                                                    ")
+                                                ) 
+                            OR type in (subTaskIssueTypes()) and (assignee was not in team('SC Core QA') and issueFunction not in subtasksOf("
+                                    type in (Story) and (assignee was in team('SC Core QA') 
+                                                            or issueFunction in parentsOf('
+                                                                type in (subTaskIssueTypes()) and status was in (\"IN PROGRESS\") AND status not in (Cancelled) AND assignee in team(\"SC Core QA\") and (summary ~ \"СТ\" or summary ~ \"СТ + ИФТ\")
+                                                            ')
+                                                        )
+                                ")
+                            ) 
+                            OR type not in (Story, subTaskIssueTypes()) and status was in ('in QA') and assignee was not in team('SC Core QA')
+                        )
+
         ```
 
-7. Задачи с неправомерным флагом "Без изменения исходного кода"
 
-    - Запрос
 
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - All tasks" and type in (Story) and "Без изменения исходного кода" in (Да) and created > 2022-08-01
-        ```   
 
 (далее - проблемы планирования)
 
-1. Задачи с некорректными формулировками https://confluence.pcbltools.ru/confluence/pages/viewpage.action?pageId=76683568
 
-    - Запрос
-
-        ```
-        Group by Team
-        Insert issues: filter = "Core Stream - All tasks" AND type in (Epic) and project in (CORE) and summary ~ 'ДОД' AND (NOT (summary ~ 'Реализован*' OR summary ~ 'Проработан*' OR summary ~ 'внедрен*' OR summary ~ 'удален*' OR summary ~ 'настроен*' OR summary ~ "\\[RoadMap\\]" OR summary ~ "\\[Backlog\\]") OR summary ~ Поддержка OR summary ~ Стабилизация OR summary ~ Развитие OR summary ~ Исправление OR summary ~ Исправление OR summary ~ Актуализация OR summary ~ Техдолг OR summary ~ Оптимизация OR summary ~ Повышение) ORDER BY fixVersion ASC
-        ```   
-
-2. (драфт) Ошибки планирования
+1. (драфт) Ошибки планирования
 
     - Запрос
 
@@ -461,7 +588,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All tasks" AND type in ("Change Proposal", "Change Request", Epic, Story, Task) and (fixVersion in ("#2023q1", "#2023q2", "#2023q3", "#2023q4") and (priority not in (Lowest) or status not in (open) or issueFunction in linkedIssuesOfRemote("query", "pageId=76679613") ) or ( fixVersion in ( "#2022q4", "r/2022-10", "r/56.0.0-rc1", "r/57.0.0-rc1", "r/58.0.0-rc1", "r/59.0.0-rc1", "r/60.0.0-rc1", "r/48.0.0-rc1", "r/48.1.0-rc1" ) and not issueFunction in linkedIssuesOfRemote("query", "pageId=76679613") ) ) and not (fixVersion in ("r/48.0.0-rc1", "r/48.1.0-rc1") and project in ( EDU, SM)) and assignee not in (MVMilkov)
         ```   
 
-3. Несогласованные цели
+2. Несогласованные цели
 
     - Запрос 
     
@@ -470,6 +597,7 @@ filter = "Core Stream - All tasks" AND statusCategory != Done AND (type not in (
         Insert issues: filter = "Core Stream - All goals and DoDs" and (Verified is EMPTY )
         ```
     
+
 Метрики
 -----------
 
